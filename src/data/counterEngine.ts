@@ -11,6 +11,7 @@ interface MatchupStat {
 interface CounterStatsFile {
   generatedAt: string | null
   sampleMatches: number
+  matchIds?: string[]
   stats: Partial<Record<Role, Record<string, Record<string, MatchupStat>>>>
 }
 const counterStats = counterStatsRaw as CounterStatsFile

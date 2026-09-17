@@ -10,6 +10,10 @@
 // チャレンジャー/グランドマスター/マスターの3ティアからサモナーを集め、
 // 1人あたり最大100試合分のマッチIDを取得することでリクエスト数を節約しつつ
 // 目標試合数に達し次第それ以上のサモナー探索を打ち切る。
+//
+// 既存のsrc/data/counterStats.generated.jsonがあればその上に積み増す(累積方式)。
+// 過去に集計済みのマッチIDはmatchIdsに記録し、再実行時に重複カウントしないよう
+// 除外する。MAX_MATCHESは「今回の実行で追加する新規試合数」の目標値。
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -93,6 +97,20 @@ async function riotFetch(url) {
   return res.json()
 }
 
+function loadPreviousOutput() {
+  try {
+    const raw = readFileSync(OUTPUT_PATH, 'utf-8')
+    const parsed = JSON.parse(raw)
+    return {
+      stats: parsed.stats ?? {},
+      matchIds: Array.isArray(parsed.matchIds) ? parsed.matchIds : [],
+      sampleMatches: parsed.sampleMatches ?? 0,
+    }
+  } catch {
+    return { stats: {}, matchIds: [], sampleMatches: 0 }
+  }
+}
+
 async function fetchSummonerPool() {
   const tiers = ['challengerleagues', 'grandmasterleagues', 'masterleagues']
   const puuids = []
@@ -116,36 +134,42 @@ async function fetchSummonerPool() {
 
 async function main() {
   const startedAt = Date.now()
-  console.log(`目標試合数: ${MAX_MATCHES} 件`)
+
+  const previous = loadPreviousOutput()
+  const stats = previous.stats
+  const processedMatchIds = new Set(previous.matchIds)
+  console.log(`既存データ: ${previous.sampleMatches} 試合分 (記録済みマッチID ${processedMatchIds.size} 件)`)
+  console.log(`今回の追加目標: ${MAX_MATCHES} 件`)
 
   console.log(`[1/3] ${QUEUE} のチャレンジャー/グランドマスター/マスターからサモナーを収集 (${PLATFORM})...`)
   const puuids = await fetchSummonerPool()
 
-  console.log('[2/3] 各サモナーの直近ランクマッチIDを取得(目標到達次第打ち切り)...')
-  const matchIdSet = new Set()
+  console.log('[2/3] 各サモナーの直近ランクマッチIDを取得(既知の試合は除外、目標到達次第打ち切り)...')
+  const newMatchIdSet = new Set()
   for (const [i, puuid] of puuids.entries()) {
-    if (matchIdSet.size >= MATCH_ID_TARGET) {
-      console.log(`  マッチID目標(${MATCH_ID_TARGET})に到達したため探索を打ち切り`)
+    if (newMatchIdSet.size >= MATCH_ID_TARGET) {
+      console.log(`  新規マッチID目標(${MATCH_ID_TARGET})に到達したため探索を打ち切り`)
       break
     }
     try {
       const ids = await riotFetch(
         `https://${REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?queue=${MATCH_QUEUE_ID}&count=${MATCHES_PER_SUMMONER}`,
       )
-      ids.forEach((id) => matchIdSet.add(id))
+      for (const id of ids) {
+        if (!processedMatchIds.has(id)) newMatchIdSet.add(id)
+      }
       console.log(
-        `  (${i + 1}/${puuids.length}) +${ids.length} matches (total unique: ${matchIdSet.size}/${MATCH_ID_TARGET})`,
+        `  (${i + 1}/${puuids.length}) 新規ユニーク合計: ${newMatchIdSet.size}/${MATCH_ID_TARGET}`,
       )
     } catch (e) {
       console.warn(`  (${i + 1}/${puuids.length}) skip: ${e.message}`)
     }
   }
 
-  const matchIds = [...matchIdSet].slice(0, MAX_MATCHES)
-  console.log(`[3/3] ${matchIds.length} 試合の詳細を取得して集計...`)
+  const matchIds = [...newMatchIdSet].slice(0, MAX_MATCHES)
+  console.log(`[3/3] ${matchIds.length} 件の新規試合の詳細を取得して集計...`)
 
   // stats[role][candidateChampionId][opponentChampionId] = { games, wins }
-  const stats = {}
   function record(role, candidate, opponent, didWin) {
     stats[role] ??= {}
     stats[role][candidate] ??= {}
@@ -154,16 +178,17 @@ async function main() {
     if (didWin) stats[role][candidate][opponent].wins += 1
   }
 
-  function writeOutput(processed) {
+  function writeOutput(newlyProcessedIds) {
     const output = {
       generatedAt: new Date().toISOString(),
-      sampleMatches: processed,
+      sampleMatches: previous.sampleMatches + newlyProcessedIds.length,
+      matchIds: [...processedMatchIds, ...newlyProcessedIds],
       stats,
     }
     writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2))
   }
 
-  let processed = 0
+  const newlyProcessed = []
   for (const matchId of matchIds) {
     try {
       const match = await riotFetch(`https://${REGION}.api.riotgames.com/lol/match/v5/matches/${matchId}`)
@@ -179,26 +204,28 @@ async function main() {
         record(role, b.championName, a.championName, b.win)
       }
 
-      processed += 1
-      if (processed % 10 === 0) {
+      newlyProcessed.push(matchId)
+      if (newlyProcessed.length % 10 === 0) {
         const elapsed = Date.now() - startedAt
-        const perMatch = elapsed / processed
-        const remaining = perMatch * (matchIds.length - processed)
+        const perMatch = elapsed / newlyProcessed.length
+        const remaining = perMatch * (matchIds.length - newlyProcessed.length)
         console.log(
-          `  ${processed}/${matchIds.length} 試合処理済み (経過 ${formatDuration(elapsed)} / 残り目安 ${formatDuration(remaining)})`,
+          `  ${newlyProcessed.length}/${matchIds.length} 試合処理済み (経過 ${formatDuration(elapsed)} / 残り目安 ${formatDuration(remaining)})`,
         )
       }
-      if (processed % CHECKPOINT_EVERY === 0) {
-        writeOutput(processed)
-        console.log(`  チェックポイント保存 (${processed}件)`)
+      if (newlyProcessed.length % CHECKPOINT_EVERY === 0) {
+        writeOutput(newlyProcessed)
+        console.log(`  チェックポイント保存 (累計 ${previous.sampleMatches + newlyProcessed.length}件)`)
       }
     } catch (e) {
       console.warn(`  match skip: ${e.message}`)
     }
   }
 
-  writeOutput(processed)
-  console.log(`完了: ${processed} 試合分のデータを ${OUTPUT_PATH} に書き出しました。`)
+  writeOutput(newlyProcessed)
+  console.log(
+    `完了: 今回 ${newlyProcessed.length} 試合を追加。累計 ${previous.sampleMatches + newlyProcessed.length} 試合分を ${OUTPUT_PATH} に書き出しました。`,
+  )
   console.log(`所要時間: ${formatDuration(Date.now() - startedAt)}`)
 }
 
