@@ -19,7 +19,7 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
           <li>勝率が高い順にカウンターピック候補と操作難易度が表示されます</li>
         </ol>
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          ※ チャンピオン情報はRiot Games公式Data Dragonから取得しています。カウンターピックの勝率・解説は参考用のサンプルデータです。
+          ※ チャンピオン情報はRiot Games公式Data Dragonから取得しています。カウンターピックの勝率は、Riotが公開しているAPIを利用して取得した実戦データをもとに算出しており、対面データが少ない場合は統計的な推定値で補っています。
         </p>
       </div>
     </Modal>
