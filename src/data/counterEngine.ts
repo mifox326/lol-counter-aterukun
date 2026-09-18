@@ -258,10 +258,10 @@ export function getCounterPicks(opponent: Champion, role: Role, pool: Champion[]
     .sort((a, b) => b.winRate - a.winRate)
     .slice(0, 3)
 
-  return ranked.map(({ candidate, winRate }) => ({
+  return ranked.map(({ candidate, winRate, real }) => ({
     champion: candidate,
     winRate: Math.round(winRate * 10) / 10,
-    difficulty: Math.min(5, Math.max(1, Math.round(candidate.difficulty / 2))),
+    matches: real?.games ?? 0,
     reasons: buildReasonLines(opponent, candidate, role),
   }))
 }

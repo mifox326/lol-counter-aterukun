@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { CounterPick } from '../types'
-import { DifficultyStars } from './DifficultyStars'
 
 interface CounterListProps {
   counters: CounterPick[]
@@ -48,7 +47,9 @@ export function CounterList({ counters, hasSelection }: CounterListProps) {
                   勝率 {counter.winRate}%
                 </p>
               </div>
-              <DifficultyStars value={counter.difficulty} />
+              <span className="text-xs whitespace-nowrap text-slate-400 dark:text-slate-500">
+                {counter.matches}試合
+              </span>
               <svg
                 viewBox="0 0 24 24"
                 width="18"

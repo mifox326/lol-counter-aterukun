@@ -22,6 +22,6 @@ export interface Champion {
 export interface CounterPick {
   champion: Champion
   winRate: number
-  difficulty: number
+  matches: number
   reasons: string[]
 }
