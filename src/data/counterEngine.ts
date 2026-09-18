@@ -176,12 +176,7 @@ function computeScore(opponent: Champion, candidate: Champion, role: Role): numb
   return score
 }
 
-function buildReasonLines(
-  opponent: Champion,
-  candidate: Champion,
-  role: Role,
-  real: MatchupStat | null,
-): string[] {
+function buildReasonLines(opponent: Champion, candidate: Champion, role: Role): string[] {
   const factors: { value: number; text: string }[] = []
   const weight = ROLE_WEIGHTS[role]
 
@@ -221,13 +216,6 @@ function buildReasonLines(
 
   factors.sort((a, b) => b.value - a.value)
   const lines: string[] = []
-
-  if (real && real.games > 0) {
-    const realWinRatePct = Math.round((real.wins / real.games) * 1000) / 10
-    lines.push(
-      `実戦データでは${opponent.name}戦${real.games}戦${real.wins}勝(勝率${realWinRatePct}%)。`,
-    )
-  }
 
   for (const factor of factors) {
     if (lines.length >= 3) break
@@ -270,10 +258,10 @@ export function getCounterPicks(opponent: Champion, role: Role, pool: Champion[]
     .sort((a, b) => b.winRate - a.winRate)
     .slice(0, 3)
 
-  return ranked.map(({ candidate, winRate, real }) => ({
+  return ranked.map(({ candidate, winRate }) => ({
     champion: candidate,
     winRate: Math.round(winRate * 10) / 10,
     difficulty: Math.min(5, Math.max(1, Math.round(candidate.difficulty / 2))),
-    reasons: buildReasonLines(opponent, candidate, role, real),
+    reasons: buildReasonLines(opponent, candidate, role),
   }))
 }

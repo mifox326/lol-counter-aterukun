@@ -9,7 +9,7 @@ interface HeaderProps {
 
 export function Header({ dark, onToggleDark, onHelp }: HeaderProps) {
   return (
-    <header className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-slate-700">
+    <header className="flex h-[150px] items-center justify-between border-b border-slate-200 px-4 dark:border-slate-700">
       <div className="w-9" />
       <Logo />
       <div className="flex items-center gap-2">
