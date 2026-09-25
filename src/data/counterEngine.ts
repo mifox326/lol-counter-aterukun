@@ -158,6 +158,8 @@ export function getCounterPicks(opponent: Champion, role: Role, pool: Champion[]
 
       return { candidate, winRate, real }
     })
+    // 実戦データが1戦もない対面は候補から除外する。
+    .filter(({ real }) => real && real.games > 0)
     .sort((a, b) => b.winRate - a.winRate)
     .slice(0, 3)
 

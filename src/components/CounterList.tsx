@@ -8,6 +8,7 @@ interface CounterListProps {
 }
 
 const SKILL_KEY_PATTERN = /([QWER])/
+const LOW_SAMPLE_THRESHOLD = 20
 
 function renderReasonLine(text: string, icons: SpellIconMap | undefined) {
   if (!icons) return text
@@ -35,6 +36,14 @@ export function CounterList({ counters, hasSelection }: CounterListProps) {
         チャンピオンとロールを選択すると
         <br />
         カウンターピック候補が表示されます
+      </div>
+    )
+  }
+
+  if (counters.length === 0) {
+    return (
+      <div className="flex min-h-64 flex-1 items-center justify-center rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400 dark:border-slate-600 dark:text-slate-500">
+        この対面はまだ実戦データが集まっていません
       </div>
     )
   }
@@ -67,7 +76,12 @@ export function CounterList({ counters, hasSelection }: CounterListProps) {
                   勝率 {counter.winRate}%
                 </p>
               </div>
-              <span className="text-xs whitespace-nowrap text-slate-400 dark:text-slate-500">
+              <span className="flex items-center gap-1.5 text-xs whitespace-nowrap text-slate-400 dark:text-slate-500">
+                {counter.matches < LOW_SAMPLE_THRESHOLD && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                    サンプル少
+                  </span>
+                )}
                 {counter.matches}試合
               </span>
               <svg
