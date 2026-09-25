@@ -1,7 +1,7 @@
 import type { Champion, CounterPick, Role } from '../types'
 import { getEligibleRoles } from './roleEligibility'
 import counterStatsRaw from './counterStats.generated.json'
-import { getActionTip } from './championActions'
+import { getCounterReasonLines } from './championActions'
 
 // scripts/collect-match-data.mjs がRiot公式APIの実戦ランクマッチから集計した
 // ロール別チャンピオン対面成績。同名スクリプトを再実行すると更新される。
@@ -100,44 +100,6 @@ const ROLE_WEIGHTS: Record<Role, { range: number; defense: number; tag: number }
   bottom: { range: 0.1, defense: 0.7, tag: 0.9 },
 }
 
-// 実ステータスから明確な理由が導けない枠を埋めるための、ロール別の一般的な立ち回りTips。
-// 乱数は使わず、チャンピオンIDから決定的に選ぶため同じ相手には常に同じ結果になる。
-const ROLE_TIPS: Record<Role, ((opponentName: string) => string)[]> = {
-  top: [
-    (n) => `序盤の細かい交易を積み重ねて${n}にプレッシャーを与えやすい。`,
-    (n) => `${n}のスキルモーションを見てから安全に立ち回りやすい。`,
-    (n) => `テレポートやサイド管理を活かして${n}のいないレーンでも存在感を出しやすい。`,
-  ],
-  jungle: [
-    (n) => `${n}のジャングル動線を読んでカウンタージャンプを狙いやすい。`,
-    (n) => `ガンクの成功率が高く、${n}のレーン戦を崩しやすい。`,
-    (n) => `視界コントロールで${n}のオブジェクト管理を妨害しやすい。`,
-  ],
-  mid: [
-    (n) => `ウェーブクリアが速く、${n}に対してロームで圧をかけやすい。`,
-    (n) => `${n}のオールインを機動力で回避しやすい。`,
-    (n) => `中盤の集団戦では${n}より先に火力を発揮しやすい。`,
-  ],
-  support: [
-    (n) => `先手のCCで${n}に対してレーン主導権を握りやすい。`,
-    (n) => `ADCへのピールが強く、${n}のダイブを防ぎやすい。`,
-    (n) => `視界コントロールで${n}のロームを察知しやすい。`,
-  ],
-  bottom: [
-    (n) => `安定したDPSで${n}との長期戦のレーン戦に強い。`,
-    (n) => `${n}に対して有利なポジショニングを取りやすい。`,
-    (n) => `集団戦での持続火力を活かして${n}を上回りやすい。`,
-  ],
-}
-
-function hashString(value: string): number {
-  let hash = 0
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0
-  }
-  return hash
-}
-
 function effectiveArmor(c: Champion): number {
   return c.armor + c.armorPerLevel * 9
 }
@@ -171,26 +133,8 @@ function computeScore(opponent: Champion, candidate: Champion, role: Role): numb
   return score
 }
 
-function buildReasonLines(opponent: Champion, candidate: Champion, role: Role): string[] {
-  const lines: string[] = []
-
-  const tagMatch = bestTagMatch(opponent, candidate)
-  if (tagMatch) lines.push(tagMatch.text(opponent.name))
-
-  const tips = ROLE_TIPS[role]
-  const tipOffset = hashString(candidate.id)
-  let tipIndex = 0
-  while (lines.length < 3 && tipIndex < tips.length) {
-    const tip = tips[(tipOffset + tipIndex) % tips.length](opponent.name)
-    if (!lines.includes(tip)) lines.push(tip)
-    tipIndex += 1
-  }
-
-  // 対面理由に加えて、実際のスキルを使ったカウンターアクションの一例を必ず添える。
-  const actionTip = getActionTip(candidate.id, candidate.tags, opponent.name)
-  if (!lines.includes(actionTip)) lines.push(actionTip)
-
-  return lines
+function buildReasonLines(opponent: Champion, candidate: Champion): string[] {
+  return getCounterReasonLines(candidate.id, candidate.tags, opponent.name)
 }
 
 export function getCounterPicks(opponent: Champion, role: Role, pool: Champion[]): CounterPick[] {
@@ -221,6 +165,6 @@ export function getCounterPicks(opponent: Champion, role: Role, pool: Champion[]
     champion: candidate,
     winRate: Math.round(winRate * 10) / 10,
     matches: real?.games ?? 0,
-    reasons: buildReasonLines(opponent, candidate, role),
+    reasons: buildReasonLines(opponent, candidate),
   }))
 }

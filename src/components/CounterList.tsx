@@ -1,13 +1,33 @@
 import { useState } from 'react'
 import type { CounterPick } from '../types'
+import { useChampionSpellIcons, type SkillKey, type SpellIconMap } from '../hooks/useChampionSpellIcons'
 
 interface CounterListProps {
   counters: CounterPick[]
   hasSelection: boolean
 }
 
+const SKILL_KEY_PATTERN = /([QWER])/
+
+function renderReasonLine(text: string, icons: SpellIconMap | undefined) {
+  if (!icons) return text
+
+  return text.split(SKILL_KEY_PATTERN).map((part, index) => {
+    const icon = icons[part as SkillKey]
+    if (!icon) return part
+
+    return (
+      <span key={index} className="inline-flex items-center gap-0.5 align-middle">
+        <img src={icon} alt={`${part}スキル`} className="h-[1em] w-[1em] rounded-sm" />
+        {part}
+      </span>
+    )
+  })
+}
+
 export function CounterList({ counters, hasSelection }: CounterListProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(0)
+  const spellIcons = useChampionSpellIcons(counters.map((counter) => counter.champion.id))
 
   if (!hasSelection) {
     return (
@@ -67,7 +87,7 @@ export function CounterList({ counters, hasSelection }: CounterListProps) {
                 {counter.reasons.map((line, lineIndex) => (
                   <li key={lineIndex} className="flex gap-2">
                     <span className="text-sky-500 dark:text-sky-400">・</span>
-                    <span>{line}</span>
+                    <span>{renderReasonLine(line, spellIcons[counter.champion.id])}</span>
                   </li>
                 ))}
               </ul>
