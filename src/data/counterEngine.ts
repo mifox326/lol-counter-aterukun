@@ -1,6 +1,7 @@
 import type { Champion, CounterPick, Role } from '../types'
 import { getEligibleRoles } from './roleEligibility'
 import counterStatsRaw from './counterStats.generated.json'
+import { getActionTip } from './championActions'
 
 // scripts/collect-match-data.mjs がRiot公式APIの実戦ランクマッチから集計した
 // ロール別チャンピオン対面成績。同名スクリプトを再実行すると更新される。
@@ -99,12 +100,6 @@ const ROLE_WEIGHTS: Record<Role, { range: number; defense: number; tag: number }
   bottom: { range: 0.1, defense: 0.7, tag: 0.9 },
 }
 
-// Data Dragonの成長込みステータス(レベル10相当)を基準にした、
-// 「タンキーである」と言える現実的なしきい値。
-const ARMOR_THRESHOLD = 60
-const SPELL_BLOCK_THRESHOLD = 45
-const HP_THRESHOLD = 1600
-
 // 実ステータスから明確な理由が導けない枠を埋めるための、ロール別の一般的な立ち回りTips。
 // 乱数は使わず、チャンピオンIDから決定的に選ぶため同じ相手には常に同じ結果になる。
 const ROLE_TIPS: Record<Role, ((opponentName: string) => string)[]> = {
@@ -177,50 +172,10 @@ function computeScore(opponent: Champion, candidate: Champion, role: Role): numb
 }
 
 function buildReasonLines(opponent: Champion, candidate: Champion, role: Role): string[] {
-  const factors: { value: number; text: string }[] = []
-  const weight = ROLE_WEIGHTS[role]
-
-  const rangeDiff = candidate.attackRange - opponent.attackRange
-  if (rangeDiff >= 50) {
-    factors.push({
-      value: rangeDiff * weight.range,
-      text: `射程が${rangeDiff}長く、${opponent.name}の攻撃が届く前に先制しやすい。`,
-    })
-  }
-
-  if (opponent.magic >= 6 && effectiveSpellBlock(candidate) >= SPELL_BLOCK_THRESHOLD) {
-    factors.push({
-      value: effectiveSpellBlock(candidate) * 0.15 * weight.defense,
-      text: `魔法防御が高く、${opponent.name}の魔法ダメージを軽減して被害を抑えられる。`,
-    })
-  }
-
-  if (opponent.attack >= 6 && effectiveArmor(candidate) >= ARMOR_THRESHOLD) {
-    factors.push({
-      value: effectiveArmor(candidate) * 0.15 * weight.defense,
-      text: `物理防御が高く、${opponent.name}のダメージを受けても崩れにくい。`,
-    })
-  }
-
-  if (effectiveHp(candidate) >= HP_THRESHOLD) {
-    factors.push({
-      value: effectiveHp(candidate) * 0.006 * weight.defense,
-      text: `体力量が多く、${opponent.name}との消耗戦を長く耐えられる。`,
-    })
-  }
-
-  const tagMatch = bestTagMatch(opponent, candidate)
-  if (tagMatch) {
-    factors.push({ value: tagMatch.value * weight.tag, text: tagMatch.text(opponent.name) })
-  }
-
-  factors.sort((a, b) => b.value - a.value)
   const lines: string[] = []
 
-  for (const factor of factors) {
-    if (lines.length >= 3) break
-    lines.push(factor.text)
-  }
+  const tagMatch = bestTagMatch(opponent, candidate)
+  if (tagMatch) lines.push(tagMatch.text(opponent.name))
 
   const tips = ROLE_TIPS[role]
   const tipOffset = hashString(candidate.id)
@@ -230,6 +185,10 @@ function buildReasonLines(opponent: Champion, candidate: Champion, role: Role): 
     if (!lines.includes(tip)) lines.push(tip)
     tipIndex += 1
   }
+
+  // 対面理由に加えて、実際のスキルを使ったカウンターアクションの一例を必ず添える。
+  const actionTip = getActionTip(candidate.id, candidate.tags, opponent.name)
+  if (!lines.includes(actionTip)) lines.push(actionTip)
 
   return lines
 }
