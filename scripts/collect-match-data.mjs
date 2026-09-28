@@ -75,6 +75,8 @@ function formatDuration(ms) {
   return `${min}分${sec}秒`
 }
 
+class AuthExpiredError extends Error {}
+
 let lastRequestAt = 0
 async function riotFetch(url) {
   const wait = REQUEST_INTERVAL_MS - (Date.now() - lastRequestAt)
@@ -88,6 +90,12 @@ async function riotFetch(url) {
     console.warn(`  rate limited, retrying in ${retryAfter}s...`)
     await sleep((retryAfter + 1) * 1000)
     return riotFetch(url)
+  }
+
+  // APIキーが失効/無効化されると以降の全リクエストが401/403になり続ける。
+  // 気づかずレート制限ペースで空回りし続けると時間を浪費するため即座に打ち切る。
+  if (res.status === 401 || res.status === 403) {
+    throw new AuthExpiredError(`${res.status} ${res.statusText} :: APIキーが無効か失効しています`)
   }
 
   if (!res.ok) {
@@ -162,6 +170,10 @@ async function main() {
         `  (${i + 1}/${puuids.length}) 新規ユニーク合計: ${newMatchIdSet.size}/${MATCH_ID_TARGET}`,
       )
     } catch (e) {
+      if (e instanceof AuthExpiredError) {
+        console.error(`APIキーが失効しているため中断します: ${e.message}`)
+        process.exit(1)
+      }
       console.warn(`  (${i + 1}/${puuids.length}) skip: ${e.message}`)
     }
   }
@@ -218,6 +230,12 @@ async function main() {
         console.log(`  チェックポイント保存 (累計 ${previous.sampleMatches + newlyProcessed.length}件)`)
       }
     } catch (e) {
+      if (e instanceof AuthExpiredError) {
+        writeOutput(newlyProcessed)
+        console.error(`APIキーが失効しているため中断します: ${e.message}`)
+        console.error(`中断までに ${newlyProcessed.length} 試合を保存しました。`)
+        process.exit(1)
+      }
       console.warn(`  match skip: ${e.message}`)
     }
   }

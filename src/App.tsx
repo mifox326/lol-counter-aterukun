@@ -9,7 +9,11 @@ import { useChampions } from './hooks/useChampions'
 import type { Champion, Role } from './types'
 
 function App() {
-  const [dark, setDark] = useState(false)
+  const [dark, setDark] = useState(() => {
+    const stored = localStorage.getItem('theme')
+    if (stored) return stored === 'dark'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
   const [helpOpen, setHelpOpen] = useState(false)
   const [roleModalOpen, setRoleModalOpen] = useState(false)
   const [selectedChampion, setSelectedChampion] = useState<Champion | null>(null)
@@ -19,6 +23,7 @@ function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
+    localStorage.setItem('theme', dark ? 'dark' : 'light')
   }, [dark])
 
   const counters = useMemo(() => {

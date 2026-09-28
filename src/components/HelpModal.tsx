@@ -16,10 +16,10 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
         <ol className="list-decimal space-y-1 pl-5">
           <li>検索欄に対戦相手のチャンピオン名を入力</li>
           <li>候補から対戦相手のロールを選択</li>
-          <li>勝率が高い順にカウンターピック候補と操作難易度が表示されます</li>
+          <li>勝率が高い順にカウンターピック候補とカウンター理由が表示されます</li>
         </ol>
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          ※ チャンピオン情報はRiot Games公式Data Dragonから取得しています。カウンターピックの勝率は、Riotが公開しているAPIを利用して取得した実戦データをもとに算出しており、対面データが少ない場合は統計的な推定値で補っています。
+          ※ チャンピオン情報はRiot Games公式Data Dragonから取得しています。カウンターピックの勝率は、Riotが公開しているAPIを利用して取得した日本サーバーのチャレンジャー/グランドマスター/マスター帯のランクソロキュー実戦データをもとに算出しており、対面データが少ない場合は統計的な推定値で補っています。
         </p>
       </div>
     </Modal>
